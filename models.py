@@ -128,6 +128,7 @@ class CodeGenerator(Generator):
         self.dict = nn.Embedding(h.num_embeddings, h.embedding_dim)
         self.f0 = h.get('f0', None)
         self.multispkr = h.get('multispkr', None)
+        self.match_f0_length_to_input = h.get('match_f0_length_to_input', False)
 
         if self.multispkr:
             self.spkr = nn.Embedding(200, h.embedding_dim)
@@ -138,6 +139,10 @@ class CodeGenerator(Generator):
             assert self.f0, "Requires F0 set"
             self.encoder = Encoder(**h.f0_encoder_params)
             self.vq = Bottleneck(**h.f0_vq_params)
+
+        self.gst = h.get('gst', None)
+        if self.gst:
+            self.gst = nn.Embedding(100, h.gst_embedding_dim)
 
         self.code_encoder = None
         self.code_vq = None
@@ -205,7 +210,9 @@ class CodeGenerator(Generator):
             kwargs['f0'] = f0_h_q
 
         if self.f0:
-            if x.shape[-1] < kwargs['f0'].shape[-1]:
+            if x.shape[-1] < kwargs['f0'].shape[-1] and self.match_f0_length_to_input:
+                kwargs['f0'] = F.interpolate(kwargs['f0'], x.shape[-1])
+            elif x.shape[-1] < kwargs['f0'].shape[-1]:
                 x = self._upsample(x, kwargs['f0'].shape[-1])
             else:
                 kwargs['f0'] = self._upsample(kwargs['f0'], x.shape[-1])
@@ -215,6 +222,9 @@ class CodeGenerator(Generator):
             spkr = self.spkr(kwargs['spkr']).transpose(1, 2)
             spkr = self._upsample(spkr, x.shape[-1])
             x = torch.cat([x, spkr], dim=1)
+
+        if self.gst:
+            kwargs['style'] = self.gst(kwargs['style']).squeeze(1)
 
         for k, feat in kwargs.items():
             if k in ['spkr', 'code', 'f0']:
