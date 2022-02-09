@@ -65,6 +65,8 @@ def mel_spectrogram(y, n_fft, num_mels, sampling_rate, hop_size, win_size, fmin,
     spec = spectral_normalize_torch(spec)
 
     return spec
+EMOV_SPK2ID = {'bea': 0, 'jenie': 1, 'josh': 2, 'sam': 3}
+EMOV_STYLE2ID = {'amused': 0, 'angry': 1, 'disgusted': 2, 'neutral': 3, 'sleepy': 4}
 
 
 def load_audio(full_path):
@@ -152,10 +154,20 @@ def parse_speaker(path, method):
         raise NotImplementedError()
 
 
+def parse_style(path, method):
+    if type(path) == str:
+        path = Path(path)
+
+    if method == 'emotion':
+        return path.parent.name.lower()
+    else:
+        raise NotImplementedError()
+
+
 class CodeDataset(torch.utils.data.Dataset):
     def __init__(self, training_files, segment_size, code_hop_size, n_fft, num_mels,
                  hop_size, win_size, sampling_rate, fmin, fmax, split=True, n_cache_reuse=1,
-                 device=None, fmax_loss=None, f0=None, multispkr=False, pad=None,
+                 device=None, fmax_loss=None, f0=None, multispkr=False, gst=False, pad=None,
                  f0_stats=None, f0_normalize=False, f0_feats=False, f0_median=False,
                  f0_interp=False, vqvae=False):
         self.audio_files, self.codes = training_files
@@ -185,6 +197,12 @@ class CodeDataset(torch.utils.data.Dataset):
         if f0_stats:
             self.f0_stats = torch.load(f0_stats)
         self.multispkr = multispkr
+        self.gst = gst
+        if self.gst:
+            styles = [parse_style(f, self.gst) for f in self.audio_files]
+            styles = sorted(list(set(styles)))
+            self.id_to_style = styles
+            self.style_to_id = {k: v for v, k in enumerate(self.id_to_style)}
         self.pad = pad
         if self.multispkr:
             spkrs = [parse_speaker(f, self.multispkr) for f in self.audio_files]
@@ -282,6 +300,9 @@ class CodeDataset(torch.utils.data.Dataset):
         if self.multispkr:
             feats['spkr'] = self._get_spkr(index)
 
+        if self.gst:
+            feats['style'] = self._get_style(index)
+
         if self.f0_normalize:
             spkr_id = self._get_spkr(index).item()
 
@@ -309,6 +330,11 @@ class CodeDataset(torch.utils.data.Dataset):
         spkr_name = parse_speaker(self.audio_files[idx], self.multispkr)
         spkr_id = torch.LongTensor([self.spkr_to_id[spkr_name]]).view(1).numpy()
         return spkr_id
+
+    def _get_style(self, idx):
+        style_name = parse_style(self.audio_files[idx], self.gst)
+        style_id = torch.LongTensor([self.style_to_id[style_name]]).view(1).numpy()
+        return style_id
 
     def __len__(self):
         return len(self.audio_files)
