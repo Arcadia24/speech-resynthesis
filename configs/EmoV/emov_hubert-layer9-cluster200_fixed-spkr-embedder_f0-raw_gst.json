@@ -1,6 +1,6 @@
 {
-    "input_training_file": "/checkpoint/felixkreuk/datasets/emov/manifests/emov_16khz/core_manifests/data_hubert_base_ls960_layer9_clusters200/hifigan/train.txt",
-    "input_validation_file": "/checkpoint/felixkreuk/datasets/emov/manifests/emov_16khz/core_manifests/data_hubert_base_ls960_layer9_clusters200/hifigan/valid.txt",
+    "input_training_file": "datasets/EmoV/hubert200/train.txt",
+    "input_validation_file": "datasets/EmoV/hubert200/valid.txt",
 
     "resblock": "1",
     "num_gpus": 0,
